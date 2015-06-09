@@ -1,5 +1,4 @@
-import jpcap.*;
-import jpcap.packet.*;
+import hypermedia.net.*;
 
 import processing.opengl.*;
 
@@ -12,23 +11,25 @@ import shapes3d.utils.*;
 import shapes3d.animation.*;
 import shapes3d.*;
 
+import java.nio.*;
+import java.util.Arrays;
+
 Box box;
 Rot nullrot=new Rot(1,0,0,0,false),
         rot=new Rot(1,0,0,0,false);
 PeasyCam pCamera;
 PMatrix3D baseMat;
 
-JpcapCaptor rx;
+UDP rx;
 
 void setup()
 {
   size(600, 600, P3D);
 
   try {
-  jpcap.NetworkInterface device = JpcapCaptor.getDeviceList()[3];
-  rx = JpcapCaptor.openDevice(device,65535,false,20);
-  //rx.setFilter("src port 2020", false);
-  System.out.println(device.name);
+    rx = new UDP(this,5050);
+    //rx.log(true);
+    rx.listen(true);
   } catch (Exception e) {
     System.out.println(e);
     System.exit(-1);
@@ -48,43 +49,37 @@ void keyPressed() {
 
 // ClientEvent message is generated when the server 
 // sends data to an existing client.
-void rxpacket()
-{
-  Packet p;
-  String msg = "";
-  float ts,q0,q1,q2,q3;
-  
-  while ((p=rx.getPacket())!=null) {
-    if (p.data.length<10)
-      continue;
-
-    // strip UDP header and extract data
-    msg = new String(Arrays.copyOfRange(p.data, 8,p.data.length-1));
+int seqnr = 0;
+void receive(byte[] message)
+{  
+  if (message.length != 4*8) {
+    System.out.println("nope");
+    return;
   }
   
-  String[] list;
-  msg = msg.trim();
-  list = split(msg, ' ');
-
-  if (list.length >= 5)
-  {
-    ts=Float.parseFloat(list[0]);
-    q0=Float.parseFloat(list[1]);
-    q1=Float.parseFloat(list[2]);
-    q2=Float.parseFloat(list[3]);
-    q3=Float.parseFloat(list[4]);
-    rot=new Rot(q0,q1,q2,q3,true);
-    rot=rot.applyInverseTo(nullrot); // calculate inverse
+  float scalar,x,y,z;
+  int seq = ByteBuffer.wrap( Arrays.copyOfRange(message,0,4) ).order(ByteOrder.LITTLE_ENDIAN).getInt();
+  
+  if (seq < seqnr) {
+    System.err.println("uhoh");
+    System.err.println(seq);
+    System.err.println(seqnr);
   }
-
-  System.out.println(msg);
+  
+  scalar = ByteBuffer.wrap( Arrays.copyOfRange(message,4,8) ).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+  x = ByteBuffer.wrap( Arrays.copyOfRange(message,8,12) ).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+  y = ByteBuffer.wrap( Arrays.copyOfRange(message,12,16) ).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+  z = ByteBuffer.wrap( Arrays.copyOfRange(message,16,20) ).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+  
+  rot=new Rot(scalar,y,-x,-z,true);
+  //rot=rot.applyInverseTo(nullrot); // calculate inverse
 }
 
 void draw()
 {
   background(20);
   
-  rxpacket();
+  //rxpacket();
   
   // stage lighting
   pushMatrix();
@@ -97,7 +92,7 @@ void draw()
    * coordinates, we have to:
    *  (a) mirror the z-axis
    *  (b) use the inverse rotation (which is calculated in clientEvent) */
-  scale(1,1,-1); // mirror on z-axis
+  scale(1,1,1); // mirror on z-axis
   
   /* apply the rotation */
   rotateX(rot.getAngles(RotOrder.XYZ)[0]);

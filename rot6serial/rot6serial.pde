@@ -1,3 +1,4 @@
+
 import processing.serial.*;
 
 import jpcap.*;
@@ -44,12 +45,15 @@ void keyPressed() {
 void serialEvent(Serial p)
 {
   String msg = "";
-  float ts,q0,q1,q2,q3;
+  float ts,scalar,x,y,z;
  
  if (p==null)
    return;
  
-  msg = p.readString(); 
+  msg = p.readString();
+  
+  if (msg==null)
+    return;
     
   //System.out.println(msg);
   
@@ -57,14 +61,14 @@ void serialEvent(Serial p)
   msg = msg.trim();
   list = split(msg, '\t');
   
-  if (list.length >= 4)
+  if (list != null && list.length == 4)
   {
     //ts=Float.parseFloat(list[0]);
-    q0=Float.parseFloat(list[0]);
-    q1=Float.parseFloat(list[1]);
-    q2=Float.parseFloat(list[2]);
-    q3=Float.parseFloat(list[3]);
-    rot=new Rot(q0,q1,q2,q3,true);
+    scalar=Float.parseFloat(list[0]);
+    x=Float.parseFloat(list[1]);
+    y=Float.parseFloat(list[2]);
+    z=Float.parseFloat(list[3]);
+    rot=new Rot(scalar,x,y,z,true);
     rot=rot.applyInverseTo(nullrot); // calculate inverse
   }
 }
